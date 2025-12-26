@@ -3,7 +3,6 @@
 
 using namespace std;
 
-
 // Count the number of lines in the input file
 int countNumberOfLines(ifstream &file)
 {
@@ -16,18 +15,16 @@ int countNumberOfLines(ifstream &file)
     return numOfLines;
 }
 
-
 // Count the number of bytes in the input file
 int countNumberOfBytes(ifstream &file)
 {
-    int numOfBytes= 0;
+    int numOfBytes = 0;
 
-    file.seekg(0, ios::end);    // Seek to the end of the file to get its size
+    file.seekg(0, ios::end); // Seek to the end of the file to get its size
     numOfBytes = file.tellg();
 
     return numOfBytes;
 }
-
 
 // Count the number of words in the input file
 int countNumberOfWords(ifstream &file)
@@ -43,7 +40,8 @@ int countNumberOfWords(ifstream &file)
             if (isspace(line[index]))
             {
                 index++;
-                continue;;
+                continue;
+                ;
             }
 
             numOfWords++;
@@ -55,7 +53,6 @@ int countNumberOfWords(ifstream &file)
 
     return numOfWords;
 }
-
 
 // Count the number of characters in the input file
 int countNumberOfCharacters(ifstream &file)
@@ -69,17 +66,15 @@ int countNumberOfCharacters(ifstream &file)
     return numOfCharacters;
 }
 
-
 // Validate the option - i.e. -l, -w, -c, -m
 bool isOptionValid(string option)
 {
     if (option.length() != 2 || (option.length() == 2 && option[0] != '-'))
-        return false;   // invalid option
-    return true;        // valid option
+        return false; // invalid option
+    return true;      // valid option
 }
 
-
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
     if (argc < 2 || argc > 3)
     {
@@ -114,7 +109,7 @@ int main(int argc, char* argv[])
         // Read from standard input (stdin) and write into the inputFile.txt
         while (getline(cin, inputText))
             outputFile << inputText << endl;
-        
+
         outputFile.close();
 
         ifstream inputFile(fileName);
@@ -124,28 +119,28 @@ int main(int argc, char* argv[])
             cerr << "Error: Could not open file " << fileName << endl;
             return 1;
         }
-        
+
         switch (option)
         {
-            case 'l':
-                cout << countNumberOfLines(inputFile) << endl;
-                break;
-            case 'c':
-                cout << countNumberOfBytes(inputFile) << endl;
-                break;
-            case 'm':
-                cout << countNumberOfCharacters(inputFile) << endl;
-                break;
-            case 'w':
-                cout << countNumberOfWords(inputFile) << endl;
-                break;
-            default:
-                cerr << "Error: Invalid option. Use -l, -w, -c or -m." << endl;
-                break;
+        case 'l':
+            cout << countNumberOfLines(inputFile) << endl;
+            break;
+        case 'c':
+            cout << countNumberOfBytes(inputFile) << endl;
+            break;
+        case 'm':
+            cout << countNumberOfCharacters(inputFile) << endl;
+            break;
+        case 'w':
+            cout << countNumberOfWords(inputFile) << endl;
+            break;
+        default:
+            cerr << "Error: Invalid option. Use -l, -w, -c or -m." << endl;
+            break;
         }
 
         inputFile.close();
-        
+
         if (remove(fileName.c_str()) == 0)
         {
             // File successfully deleted
@@ -172,15 +167,15 @@ int main(int argc, char* argv[])
 
         cout << countNumberOfLines(inputFile) << " ";
 
-        inputFile.clear();               // Clear any error flags
-        inputFile.seekg(0, ios::beg);    // Move to the start of the file
+        inputFile.clear();            // Clear any error flags
+        inputFile.seekg(0, ios::beg); // Move to the start of the file
 
         cout << countNumberOfWords(inputFile) << " ";
 
-        inputFile.clear();               // Clear any error flags
-        inputFile.seekg(0, ios::beg);    // Move to the start of the file
+        inputFile.clear();            // Clear any error flags
+        inputFile.seekg(0, ios::beg); // Move to the start of the file
 
-        cout << countNumberOfBytes(inputFile) << " " <<  argv[1] << endl;
+        cout << countNumberOfBytes(inputFile) << " " << argv[1] << endl;
 
         inputFile.close();
 
@@ -209,21 +204,21 @@ int main(int argc, char* argv[])
 
         switch (option)
         {
-            case 'l':
-                cout << countNumberOfLines(inputFile) << " " << argv[2] << endl;
-                break;
-            case 'c':
-                cout << countNumberOfBytes(inputFile) << " " << argv[2] << endl;
-                break;
-            case 'm':
-                cout << countNumberOfCharacters(inputFile) << " " << argv[2] << endl;
-                break;
-            case 'w':
-                cout << countNumberOfWords(inputFile) << " " << argv[2] << endl;
-                break;
-            default:
-                cerr << "Error: Invalid option. Use -l, -w, -c or -m." << endl;
-                return 1;
+        case 'l':
+            cout << countNumberOfLines(inputFile) << " " << argv[2] << endl;
+            break;
+        case 'c':
+            cout << countNumberOfBytes(inputFile) << " " << argv[2] << endl;
+            break;
+        case 'm':
+            cout << countNumberOfCharacters(inputFile) << " " << argv[2] << endl;
+            break;
+        case 'w':
+            cout << countNumberOfWords(inputFile) << " " << argv[2] << endl;
+            break;
+        default:
+            cerr << "Error: Invalid option. Use -l, -w, -c or -m." << endl;
+            return 1;
         }
 
         inputFile.close();

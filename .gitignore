@@ -12,7 +12,7 @@
 .AppleDouble
 .LSOverride
 
-# C++
+# C++ compiled files and binaries
 *.o
 *.obj
 *.exe
@@ -62,6 +62,18 @@
 *.dll.config
 *.exe.config
 *.sketch
+
+# Specific binary executables found in this repo
+ccwc
+jp
+wc_refactored
+a.out
+
+# Generic patterns for common binary names
+**/ccwc
+**/jp
+**/wc_refactored
+**/a.out
 
 # Build directories
 build/
