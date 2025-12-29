@@ -1,6 +1,6 @@
 #include "parser.h"
 
-Parser::Parser(Lexer l) : lex(std::move(l)) 
+Parser::Parser(Lexer l) : lex(std::move(l)), cur(TokenType::INVALID, 0)
 { 
     advance(); 
 }
