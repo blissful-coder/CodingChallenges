@@ -14,44 +14,44 @@ Token Lexer::next()
 {
     skipWs();
     if (i >= s.size())
-        return {TokenType::EOF_TOKEN, i, '\0'};
+        return {TokenType::EOF_TOKEN, i};
 
     char c = s[i];
     if (c == '{')
     {
         i++;
         std::cout << "[LEX] " << tokenName(TokenType::LBRACE) << " at pos " << (i - 1) << "\n";
-        return {TokenType::LBRACE, i - 1, '\0'};
+        return {TokenType::LBRACE, i - 1, "{"};
     }
     if (c == '[')
     {
         i++;
         std::cout << "[LEX] " << tokenName(TokenType::LBRACKET) << " at pos " << (i - 1) << "\n";
-        return {TokenType::LBRACKET, i - 1, '\0'};
+        return {TokenType::LBRACKET, i - 1, "["};
     }
     if (c == ']')
     {
         i++;
         std::cout << "[LEX] " << tokenName(TokenType::RBRACKET) << " at pos " << (i - 1) << "\n";
-        return {TokenType::RBRACKET, i - 1, '\0'};
+        return {TokenType::RBRACKET, i - 1, "]"};
     }
     if (c == '}')
     {
         i++;
         std::cout << "[LEX] " << tokenName(TokenType::RBRACE) << " at pos " << (i - 1) << "\n";
-        return {TokenType::RBRACE, i - 1, '\0'};
+        return {TokenType::RBRACE, i - 1, "}"};
     }
     if (c == ':')
     {
         i++;
         std::cout << "[LEX] " << tokenName(TokenType::COLON) << " at pos " << (i - 1) << "\n";
-        return {TokenType::COLON, i - 1, '\0'};
+        return {TokenType::COLON, i - 1, ":"};
     }
     if (c == ',')
     {
         i++;
         std::cout << "[LEX] " << tokenName(TokenType::COMMA) << " at pos " << (i - 1) << "\n";
-        return {TokenType::COMMA, i - 1, '\0'};
+        return {TokenType::COMMA, i - 1, ","};
     }
     if (c == '"')
         return parseString();
@@ -62,13 +62,14 @@ Token Lexer::next()
         return parseNumber();
 
     i++;
-    return {TokenType::INVALID, i - 1, c};
+    return {TokenType::INVALID, i - 1, "", c};
 }
 
 Token Lexer::parseString()
 {
     std::size_t start = i;
     i++; // skip opening quote
+    std::string value;
 
     while (i < s.size() && s[i] != '"')
     {
@@ -76,21 +77,23 @@ Token Lexer::parseString()
         {
             i++; // skip escape character
             if (i >= s.size())
-                return {TokenType::INVALID, start, '"'};
-            i++; // skip escaped character
+                return {TokenType::INVALID, start, "", '"'};
+            value += s[i]; // add escaped character
+            i++;
         }
         else
         {
+            value += s[i];
             i++;
         }
     }
 
     if (i >= s.size())
-        return {TokenType::INVALID, start, '"'};
+        return {TokenType::INVALID, start, "", '"'};
 
     i++; // skip closing quote
     std::cout << "[LEX] " << tokenName(TokenType::STRING) << " at pos " << start << "\n";
-    return {TokenType::STRING, start, '\0'};
+    return {TokenType::STRING, start, value};
 }
 
 Token Lexer::parseKeyword()
@@ -114,10 +117,10 @@ Token Lexer::parseKeyword()
         result = TokenType::NULL_TOKEN;
 
     if (result == TokenType::INVALID)
-        return {TokenType::INVALID, start, start_char};
+        return {TokenType::INVALID, start, "", start_char};
 
     std::cout << "[LEX] " << tokenName(result) << " at pos " << start << "\n";
-    return {result, start, '\0'};
+    return {result, start, keyword};
 }
 
 Token Lexer::parseNumber()
@@ -129,6 +132,7 @@ Token Lexer::parseNumber()
         i++;
     }
 
+    std::string value = s.substr(start, i - start);
     std::cout << "[LEX] " << tokenName(TokenType::NUMBER) << " at pos " << start << "\n";
-    return {TokenType::NUMBER, start, '\0'};
+    return {TokenType::NUMBER, start, value};
 }
