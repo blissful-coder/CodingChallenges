@@ -12,9 +12,6 @@ set(CORE_SOURCES
     src/token.cpp
     src/lexer.cpp
     src/parser.cpp
-    src/parse_tree.cpp
-    src/tree_parser.cpp
-    src/simple_visualizer.cpp
     src/file_utils.cpp
 )
 

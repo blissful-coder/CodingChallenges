@@ -4,8 +4,8 @@ SRCDIR = src
 OBJDIR = obj
 TARGET = jp
 
-# Source files
-SOURCES = $(wildcard $(SRCDIR)/*.cpp)
+# Source files (exclude tree_parser.cpp and parse_tree.cpp from main build)
+SOURCES = $(SRCDIR)/main.cpp $(SRCDIR)/lexer.cpp $(SRCDIR)/parser.cpp $(SRCDIR)/token.cpp $(SRCDIR)/file_utils.cpp
 OBJECTS = $(SOURCES:$(SRCDIR)/%.cpp=$(OBJDIR)/%.o)
 
 # Default target
