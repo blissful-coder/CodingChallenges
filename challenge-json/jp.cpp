@@ -1,108 +1,65 @@
 #include <iostream>
-#include <fstream>
-#include <map>
 #include <string>
+#include <fstream>
+#include <stdexcept>
 
-#define sz 4
-using namespace std;
+std::string readFileForParsing(const std::string& filename);
+void printUsage();
 
-int simpleDFA [sz][sz] = {
-    {0,1,3,3},
-    {1,3,2,3},
-    {2,3,3,3},
-    {3,3,3,3}
-};
-
-
-int mapper(char key){
-    map<char,int> mapper;
-    
-    mapper[' ']= 0;
-    mapper['{']= 1;
-    mapper['}']= 2;
-
-    auto it = mapper.find(key);
-    if (it == mapper.end()) {
-        return 3;
+int main(int argc, char** argv) {
+    if (argc != 2) {
+        printUsage();
+        return 1;
+    }
+    try {
+        // Read JSON file
+        std::string fileContent = readFileForParsing(argv[1]);
+        std::cout << "\nRAW STRING: " << fileContent << std::endl;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
     }
     
-    return mapper[key];
+    return 0;
 }
 
-// Function to read file contents
-string readFileContents(const string& filename) {
-    ifstream file(filename);
-    if (!file.is_open()) {
-        cerr << "Error: Cannot open file '" << filename << "'" << endl;
-        return "";
+std::string readFileForParsing(const std::string& filename) {
+    std::ifstream rfile(filename, std::ios::binary);
+    
+    if (!rfile.is_open()) {
+        throw std::runtime_error("Could not open file: " + filename);
     }
     
-    string content;
-    string line;
-    while (getline(file, line)) {
-        content += line;
-        content += "\n"; // Preserve line breaks
-    }
-    file.close();
+    // Read entire file preserving exact content
+    rfile.seekg(0, std::ios::end);
+    std::streampos pos = rfile.tellg();
     
-    // Remove the last newline if it exists
-    if (!content.empty() && content.back() == '\n') {
-        content.pop_back();
+    // Check if tellg() failed
+    if (pos < 0) {
+        throw std::runtime_error("Failed to determine file size: " + filename);
+    }
+    
+    std::size_t size = static_cast<std::size_t>(pos);
+    rfile.seekg(0, std::ios::beg);
+    
+    // Handle empty files safely
+    if (size == 0) {
+        return {};
+    }
+    
+    std::string content(size, '\0');
+    rfile.read(&content[0], size);
+    
+    // Verify the read was successful and complete
+    if (rfile.fail() || static_cast<std::size_t>(rfile.gcount()) != size) {
+        throw std::runtime_error("Failed to read complete file: " + filename);
     }
     
     return content;
 }
 
-// Function to check if a file exists
-bool fileExists(const string& filename) {
-    ifstream file(filename);
-    return file.good();
-}
-
-int theJsonParser(std::string input){
-    int current_state = 0;
-    int final_state = 2;
-    for (int i=0; i<input.size(); i++){
-        current_state = simpleDFA[current_state][mapper(input[i])];
-        cout<<current_state;
-    }
-    if(current_state == final_state)
-        return 0;
-
-    return 1;
-}
-
-int main(int argc, char *argv[]){
-    if (argc != 2) {
-        cout << "Usage: " << argv[0] << " <input_string_or_filename>" << endl;
-        cout << "  - Pass a JSON string directly: ./jp \"{}\"\n";
-        cout << "  - Pass a filename: ./jp input.json\n";
-        return 1;
-    }
-    
-    string input = argv[1];
-    string jsonContent;
-    
-    // Check if the argument is a file or a string
-    if (fileExists(input)) {
-        // It's a file - read the contents
-        cout << "Reading from file: " << input << endl;
-        jsonContent = readFileContents(input);
-        if (jsonContent.empty()) {
-            return 1; // Error message already printed in readFileContents
-        }
-    } else {
-        // It's a string argument - use it directly
-        cout << "Parsing input string: " << input << endl;
-        jsonContent = input;
-    }
-    
-    // Parse the JSON content
-    if(theJsonParser(jsonContent) == 0){
-        cout<<"\nValid JSON"<<endl;
-    }
-    else{
-        cout<<"\nInvalid JSON"<<endl;
-    }
-    return 0;
+void printUsage() {
+    std::cout << "\nUsage: ./jp <file_name>" << std::endl;
+    std::cout << "Example: ./jp test.json" << std::endl;
 }
