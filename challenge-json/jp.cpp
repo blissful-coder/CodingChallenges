@@ -41,6 +41,8 @@ enum class TokenType
 {
     LBRACE,
     RBRACE,
+    LBRACKET,
+    RBRACKET,
     STRING,
     COLON,
     COMMA,
@@ -85,6 +87,18 @@ public:
             i++;
             std::cout << "[LEX] " << tokenName(TokenType::LBRACE) << " at pos " << (i - 1) << "\n";
             return {TokenType::LBRACE, i - 1, '\0'};
+        }
+        if (c == '[')
+        {
+            i++;
+            std::cout << "[LEX] " << tokenName(TokenType::LBRACKET) << " at pos " << (i - 1) << "\n";
+            return {TokenType::LBRACKET, i - 1, '\0'};
+        }
+        if (c == ']')
+        {
+            i++;
+            std::cout << "[LEX] " << tokenName(TokenType::RBRACKET) << " at pos " << (i - 1) << "\n";
+            return {TokenType::RBRACKET, i - 1, '\0'};
         }
         if (c == '}')
         {
@@ -192,6 +206,10 @@ public:
             return "LBRACE";
         case TokenType::RBRACE:
             return "RBRACE";
+        case TokenType::LBRACKET:
+            return "LBRACKET";
+        case TokenType::RBRACKET:
+            return "RBRACKET";
         case TokenType::COLON:
             return "COLON";
         case TokenType::COMMA:
@@ -310,7 +328,89 @@ public:
             return true;
         }
 
+        // Parse nested object
+        if (cur.type == TokenType::LBRACE){
+            return parseObject();
+        }
+
+        // Parse array
+        if (cur.type == TokenType::LBRACKET){
+            return parseArray();
+        }
+
         return false;
+    }
+
+    bool parseObject()
+    {
+        if (cur.type != TokenType::LBRACE)
+            return false;
+        advance();
+
+        if (cur.type == TokenType::RBRACE)
+        { // empty object
+            advance();
+            return true;
+        }
+
+        // Parse first key-value pair
+        if (!parseKeyValue())
+            return false;
+
+        // Parse additional key-value pairs
+        while (cur.type == TokenType::COMMA)
+        {
+            advance(); // consume comma
+
+            // Check for trailing comma (invalid)
+            if (cur.type == TokenType::RBRACE)
+                return false;
+
+            if (!parseKeyValue())
+                return false;
+        }
+
+        if (cur.type != TokenType::RBRACE)
+            return false;
+        advance();
+
+        return true;
+    }
+
+    bool parseArray()
+    {
+        if (cur.type != TokenType::LBRACKET)
+            return false;
+        advance();
+
+        if (cur.type == TokenType::RBRACKET)
+        { // empty array
+            advance();
+            return true;
+        }
+
+        // Parse first value
+        if (!parseValue())
+            return false;
+
+        // Parse additional values
+        while (cur.type == TokenType::COMMA)
+        {
+            advance(); // consume comma
+
+            // Check for trailing comma (invalid)
+            if (cur.type == TokenType::RBRACKET)
+                return false;
+
+            if (!parseValue())
+                return false;
+        }
+
+        if (cur.type != TokenType::RBRACKET)
+            return false;
+        advance();
+
+        return true;
     }
 };
 
