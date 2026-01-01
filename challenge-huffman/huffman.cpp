@@ -1,5 +1,6 @@
 #include "file_utils.h"
 #include <iostream>
+#include <fstream>
 #include <stdexcept>
 #include <map>
 #include <cstddef>
@@ -9,6 +10,7 @@
 #include <unordered_map>
 #include <sstream>
 #include <memory>
+#include <queue>
 
 struct Node
 {
@@ -46,6 +48,9 @@ void buildCodes(const std::shared_ptr<Node>& node,
 std::string compressText(const std::string &text, 
                         const std::unordered_map<char, std::string> &codes);
 std::string generateOutputFilename(const std::string &inputFilename);
+std::string decompressText(const std::string &compressedBits, 
+                          const std::shared_ptr<Node> &root);
+bool isCompressedFile(const std::string &filename);
 
 int main(int argc, char **argv)
 {
@@ -64,62 +69,111 @@ int main(int argc, char **argv)
         {
             outputFilename = argv[2];
         }
+        
+        // Check if input file is a compressed file
+        if (isCompressedFile(inputFilename))
+        {
+            // DECOMPRESSION MODE
+            std::cout << "Decompression mode detected.\n";
+            
+            if (argc == 2)
+            {
+                // Generate output filename by removing .huf extension
+                size_t lastDot = inputFilename.find_last_of('.');
+                if (lastDot != std::string::npos && inputFilename.substr(lastDot) == ".huf")
+                {
+                    outputFilename = inputFilename.substr(0, lastDot) + "_decompressed.txt";
+                }
+                else
+                {
+                    outputFilename = inputFilename + "_decompressed.txt";
+                }
+            }
+            
+            // Step 6: Read header and rebuild frequency map
+            std::map<char, int> frequencies = FileUtils::readFrequencyHeader(inputFilename);
+            
+            // Rebuild Huffman tree from frequencies
+            auto root = buildHuffmanTree(frequencies);
+            
+            // Step 7: Read compressed data and decompress
+            std::string compressedBits = FileUtils::readCompressedData(inputFilename);
+            std::string decompressedText = decompressText(compressedBits, root);
+            
+            // Write decompressed text to output file
+            std::ofstream outFile(outputFilename);
+            if (!outFile.is_open())
+                throw std::runtime_error("Could not create output file: " + outputFilename);
+            
+            outFile.write(decompressedText.c_str(), decompressedText.length());
+            if (outFile.fail())
+                throw std::runtime_error("Failed to write decompressed file: " + outputFilename);
+            
+            std::cout << "Successfully decompressed to: " << outputFilename << std::endl;
+            std::cout << "Decompressed size: " << decompressedText.length() << " bytes" << std::endl;
+        }
         else
         {
-            outputFilename = generateOutputFilename(inputFilename);
-        }
-        
-        // Read input file
-        std::string fileContent = FileUtils::readFileForParsing(inputFilename);
-        
-        if (fileContent.empty())
-        {
-            std::cout << "Input file is empty. Nothing to compress.\n";
-            return 0;
-        }
-        
-        // Build frequency map
-        std::map<char, int> wordFrequency;
-        frequencyMap(fileContent, wordFrequency);
-        
-        // Build Huffman tree and generate codes
-        auto root = buildHuffmanTree(wordFrequency);
-        std::unordered_map<char, std::string> codes;
-        buildCodes(root, "", codes);
+            // COMPRESSION MODE
+            std::cout << "Compression mode detected.\n";
+            
+            if (argc == 2)
+            {
+                outputFilename = generateOutputFilename(inputFilename);
+            }
+            
+            // Read input file
+            std::string fileContent = FileUtils::readFileForParsing(inputFilename);
+            
+            if (fileContent.empty())
+            {
+                std::cout << "Input file is empty. Nothing to compress.\n";
+                return 0;
+            }
+            
+            // Build frequency map
+            std::map<char, int> wordFrequency;
+            frequencyMap(fileContent, wordFrequency);
+            
+            // Build Huffman tree and generate codes
+            auto root = buildHuffmanTree(wordFrequency);
+            std::unordered_map<char, std::string> codes;
+            buildCodes(root, "", codes);
 
-        // Display the generated codes
-        std::cout << "\n--- HUFFMAN CODES ---\n";
-        for (const auto &[ch, code] : codes)
-        {
-            if (std::isprint(static_cast<unsigned char>(ch)))
-                std::cout << "'" << ch << "' -> " << code << "\n";
-            else
-                std::cout << "0x" << std::hex
-                          << (static_cast<unsigned char>(ch) & 0xFF)
-                          << std::dec << " -> " << code << "\n";
-        }
-        
-        // Compress the text
-        std::string compressedData = compressText(fileContent, codes);
-        
-        // Write compressed file with header
-        FileUtils::writeCompressedFile(outputFilename, wordFrequency, compressedData);
-        
-        // Display compression statistics
-        std::cout << "\n--- COMPRESSION STATISTICS ---\n";
-        std::cout << "Original size: " << fileContent.size() << " bytes (" 
-                  << (fileContent.size() * 8) << " bits)\n";
-        std::cout << "Compressed size: " << compressedData.size() << " bytes (" 
-                  << compressedData.length() << " bits)\n";
-        
-        if (!fileContent.empty())
-        {
-            double compressionRatio = static_cast<double>(compressedData.length()) / 
-                                     (fileContent.size() * 8) * 100.0;
-            std::cout << "Compression ratio: " << std::fixed << std::setprecision(2) 
-                      << compressionRatio << "%\n";
-            std::cout << "Space saved: " << std::fixed << std::setprecision(2)
-                      << (100.0 - compressionRatio) << "%\n";
+            // Display the generated codes
+            std::cout << "\n--- HUFFMAN CODES ---\n";
+            for (const auto &[ch, code] : codes)
+            {
+                if (std::isprint(static_cast<unsigned char>(ch)))
+                    std::cout << "'" << ch << "' -> " << code << "\n";
+                else
+                    std::cout << "0x" << std::hex
+                              << (static_cast<unsigned char>(ch) & 0xFF)
+                              << std::dec << " -> " << code << "\n";
+            }
+            
+            // Compress the text
+            std::string compressedData = compressText(fileContent, codes);
+            
+            // Write compressed file with header
+            FileUtils::writeCompressedFile(outputFilename, wordFrequency, compressedData);
+            
+            // Display compression statistics
+            std::cout << "\n--- COMPRESSION STATISTICS ---\n";
+            std::cout << "Original size: " << fileContent.size() << " bytes (" 
+                      << (fileContent.size() * 8) << " bits)\n";
+            std::cout << "Compressed bits: " << compressedData.length() << " bits\n";
+            std::cout << "Packed size: " << ((compressedData.length() + 7) / 8) << " bytes\n";
+            
+            if (!fileContent.empty())
+            {
+                double compressionRatio = static_cast<double>(compressedData.length()) / 
+                                         (fileContent.size() * 8) * 100.0;
+                std::cout << "Compression ratio: " << std::fixed << std::setprecision(2) 
+                          << compressionRatio << "%\n";
+                std::cout << "Space saved: " << std::fixed << std::setprecision(2)
+                          << (100.0 - compressionRatio) << "%\n";
+            }
         }
         
         return 0;
@@ -262,4 +316,77 @@ std::string generateOutputFilename(const std::string &inputFilename)
         return inputFilename.substr(0, lastDot) + ".huf";
     }
     return inputFilename + ".huf";
+}
+
+std::string decompressText(const std::string &compressedBits, 
+                          const std::shared_ptr<Node> &root)
+{
+    if (!root || compressedBits.empty())
+        return "";
+    
+    std::string result;
+    auto current = root;
+    
+    for (char bit : compressedBits)
+    {
+        // Traverse tree based on bit value
+        if (bit == '0')
+        {
+            current = current->left;
+        }
+        else if (bit == '1')
+        {
+            current = current->right;
+        }
+        else
+        {
+            throw std::runtime_error("Invalid bit in compressed data: " + std::to_string(bit));
+        }
+        
+        // If we reach a leaf node, we've found a character
+        if (current && current->isLeaf())
+        {
+            result += current->ch;
+            current = root;  // Reset to root for next character
+        }
+        
+        // Safety check - if current is null, something went wrong
+        if (!current)
+        {
+            throw std::runtime_error("Invalid path in Huffman tree during decompression");
+        }
+    }
+    
+    return result;
+}
+
+bool isCompressedFile(const std::string &filename)
+{
+    try
+    {
+        std::ifstream file(filename, std::ios::binary);
+        if (!file.is_open())
+            return false;
+        
+        // Read first 4 bytes to get number of characters
+        uint32_t numChars;
+        file.read(reinterpret_cast<char*>(&numChars), sizeof(numChars));
+        if (file.fail())
+            return false;
+        
+        // Skip frequency data
+        file.seekg(numChars * 5, std::ios::cur);
+        
+        // Check for delimiter
+        char delimiter[9] = {0};
+        file.read(delimiter, 8);
+        if (file.fail())
+            return false;
+        
+        return std::string(delimiter) == "HUFFDATA";
+    }
+    catch (...)
+    {
+        return false;
+    }
 }

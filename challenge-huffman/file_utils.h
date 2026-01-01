@@ -11,4 +11,7 @@ namespace FileUtils
                            const std::map<char, int> &frequencies,
                            const std::string &compressedData);
     std::map<char, int> readFrequencyHeader(const std::string &filename);
+    std::string readCompressedData(const std::string &filename);
+    std::string packBitsToBytes(const std::string &bitString);
+    std::string unpackBytesToBits(const std::string &packedData, size_t totalBits);
 }
