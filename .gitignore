@@ -75,6 +75,15 @@ a.out
 **/wc_refactored
 **/a.out
 
+# Ignore binary executables that match their source file names
+# This pattern ignores files without extensions in challenge directories
+# For example: cut.cpp -> cut, huffman.cpp -> huffman, main.cpp -> main, etc.
+challenge-*/[!.]*[!./]
+# Also ignore common binary names that don't have extensions
+**/main
+**/test
+**/solution
+
 # Build directories
 build/
 dist/
