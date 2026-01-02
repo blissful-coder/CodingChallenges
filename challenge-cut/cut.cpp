@@ -5,6 +5,8 @@
 #include <cstdlib>
 
 std::vector<std::string> divideInParts(const std::string& line);
+void printColumn(const std::vector<std::string> lineParts, const std::string optionArg);
+
 int main(int argc, char **argv)
 {
     if (argc != 3)
@@ -24,11 +26,7 @@ int main(int argc, char **argv)
     for(std::string line; getline(ifs,line); line_no++){
         // std::cout<<"\n"<<line;
         std::vector<std::string> lineparts = divideInParts(line);
-        
-        std::cout<<"\n Line:"<<line_no<<" ";
-        for (size_t i =0; i < lineparts.size(); i++){
-            std::cout<<"["<<lineparts[i]<<"]";
-        }
+        printColumn(lineparts,argv[1]);
     }
 
     return EXIT_SUCCESS;
@@ -54,4 +52,12 @@ std::vector<std::string> divideInParts(const std::string& line){
     }
     
     return parts;
+}
+
+void printColumn(const std::vector<std::string> lineParts, const std::string optionArg){
+    size_t col = optionArg[2] - '0' -1;
+    for(size_t i=0; i<lineParts.size(); i++){
+        if(i==col)
+            std::cout<<lineParts[i]<<"\n";
+    }
 }
