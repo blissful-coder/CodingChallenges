@@ -81,6 +81,10 @@ public:
             else if (startsWith(arg, "--delimiter=")) {
                 config.delimiter = extractOptionValue(arg, "--delimiter=");
             }
+            else if (arg == "-") {
+                // Single dash means read from stdin
+                config.filename = "";  // Empty filename means stdin
+            }
             else if (startsWith(arg, "-")) {
                 throw std::runtime_error("Unknown option: " + arg);
             }
@@ -138,8 +142,15 @@ private:
         while (std::getline(ss, item, ',')) {
             if (item.empty()) continue;
             
-            // Check for range (e.g., "1-5")
+            // Check for range (e.g., "1-5" or "1 2")
             size_t dash_pos = item.find('-');
+            size_t space_pos = item.find(' ');
+
+            // Check for space with dash is not found
+            if (space_pos != std::string::npos){
+                dash_pos = space_pos;
+            }
+
             if (dash_pos != std::string::npos) {
                 std::string start_str = item.substr(0, dash_pos);
                 std::string end_str = item.substr(dash_pos + 1);
