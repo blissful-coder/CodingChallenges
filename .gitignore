@@ -78,7 +78,12 @@ a.out
 # Ignore binary executables that match their source file names
 # This pattern ignores files without extensions in challenge directories
 # For example: cut.cpp -> cut, huffman.cpp -> huffman, main.cpp -> main, etc.
-challenge-*/[!.]*[!./]
+challenge-*/cut
+challenge-*/huffman
+challenge-*/lb
+challenge-*/be
+challenge-*/wc
+challenge-*/jp
 # Also ignore common binary names that don't have extensions
 **/main
 **/test
