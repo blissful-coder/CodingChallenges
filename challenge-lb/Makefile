@@ -1,15 +1,12 @@
 CXX = g++
 CXXFLAGS = -std=c++11 -Wall -Wextra -pthread
 
-all: lb be
+all: lb
 
 lb: lb.cpp
 	$(CXX) $(CXXFLAGS) -o lb lb.cpp
 
-be: be.cpp
-	$(CXX) $(CXXFLAGS) -o be be.cpp
-
 clean:
-	rm -f lb be
+	rm -f lb
 
 .PHONY: all clean

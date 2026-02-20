@@ -8,52 +8,58 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-#include <fcntl.h>
+#include <netdb.h>
 
 class LoadBalancer {
 private:
-    int server_fd;
-    int port;
+    int listen_port;
     std::string backend_host;
     int backend_port;
+    int server_socket;
 
 public:
-    LoadBalancer(int port = 80, std::string backend_host = "127.0.0.1", int backend_port = 8080) 
-        : port(port), backend_host(backend_host), backend_port(backend_port), server_fd(-1) {}
+    LoadBalancer(int port, const std::string& host, int b_port) 
+        : listen_port(port), backend_host(host), backend_port(b_port), server_socket(-1) {}
+
+    ~LoadBalancer() {
+        if (server_socket != -1) {
+            close(server_socket);
+        }
+    }
 
     bool start() {
         // Create socket
-        server_fd = socket(AF_INET, SOCK_STREAM, 0);
-        if (server_fd == -1) {
+        server_socket = socket(AF_INET, SOCK_STREAM, 0);
+        if (server_socket == -1) {
             std::cerr << "Failed to create socket" << std::endl;
             return false;
         }
 
-        // Set socket options
+        // Set socket options to reuse address
         int opt = 1;
-        if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
+        if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
             std::cerr << "Failed to set socket options" << std::endl;
             return false;
         }
 
         // Bind socket
-        struct sockaddr_in address;
-        address.sin_family = AF_INET;
-        address.sin_addr.s_addr = INADDR_ANY;
-        address.sin_port = htons(port);
+        struct sockaddr_in server_addr;
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_addr.s_addr = INADDR_ANY;
+        server_addr.sin_port = htons(listen_port);
 
-        if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
-            std::cerr << "Failed to bind socket to port " << port << std::endl;
+        if (bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+            std::cerr << "Failed to bind socket to port " << listen_port << std::endl;
             return false;
         }
 
         // Listen for connections
-        if (listen(server_fd, 10) < 0) {
+        if (listen(server_socket, 10) < 0) {
             std::cerr << "Failed to listen on socket" << std::endl;
             return false;
         }
 
-        std::cout << "Load balancer listening on port " << port << std::endl;
+        std::cout << "Load balancer listening on port " << listen_port << std::endl;
         return true;
     }
 
@@ -62,167 +68,122 @@ public:
             struct sockaddr_in client_addr;
             socklen_t client_len = sizeof(client_addr);
             
-            int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
-            if (client_fd < 0) {
-                std::cerr << "Failed to accept client connection" << std::endl;
+            int client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_len);
+            if (client_socket < 0) {
+                std::cerr << "Failed to accept connection" << std::endl;
                 continue;
             }
 
-            // Handle client in separate thread
-            std::thread client_thread(&LoadBalancer::handleClient, this, client_fd, client_addr);
+            // Handle client in a separate thread
+            std::thread client_thread(&LoadBalancer::handle_client, this, client_socket, client_addr);
             client_thread.detach();
         }
     }
 
-    void handleClient(int client_fd, struct sockaddr_in client_addr) {
-        char buffer[4096] = {0};
-        ssize_t bytes_read = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
-        
-        if (bytes_read <= 0) {
-            close(client_fd);
+private:
+    void handle_client(int client_socket, struct sockaddr_in client_addr) {
+        char client_ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
+
+        // Read request from client
+        char buffer[4096];
+        ssize_t bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
+        if (bytes_received <= 0) {
+            close(client_socket);
             return;
         }
-
-        std::string request(buffer);
-        std::string client_ip = inet_ntoa(client_addr.sin_addr);
+        buffer[bytes_received] = '\0';
 
         // Log the incoming request
         std::cout << "Received request from " << client_ip << std::endl;
-        std::cout << request << std::endl;
+        std::cout << buffer << std::endl;
 
         // Forward request to backend server
-        std::string response = forwardToBackend(request);
-
+        std::string response = forward_to_backend(buffer);
+        
         if (!response.empty()) {
-            // Extract the actual message content from backend response
-            std::string backend_message = extractBackendMessage(response);
-            std::cout << "[LB] : [" << backend_message << "|BE] " << std::endl;
-
-            // Modify response to include load balancer marker
-            std::string modified_response = addLoadBalancerMarker(response);
+            // Log response from backend
+            std::string status_line = response.substr(0, response.find('\n'));
+            std::cout << "Response from server: " << status_line << std::endl;
             
-            // Send modified response back to client
-            send(client_fd, modified_response.c_str(), modified_response.length(), 0);
+            // Send response back to client
+            send(client_socket, response.c_str(), response.length(), 0);
         } else {
-            // Send error response
-            std::string error_response = "HTTP/1.1 502 Bad Gateway\r\n\r\n[LB] : [Backend server unavailable|BE] Backend server unavailable";
-            std::cout << "[LB] : [Backend server unavailable|BE] Backend server unavailable" << std::endl;
-            send(client_fd, error_response.c_str(), error_response.length(), 0);
+            // Send error response if backend is unavailable
+            std::string error_response = "HTTP/1.1 502 Bad Gateway\r\n\r\nBackend server unavailable";
+            send(client_socket, error_response.c_str(), error_response.length(), 0);
         }
 
-        close(client_fd);
+        close(client_socket);
     }
 
-    std::string extractBackendMessage(const std::string& response) {
-        // Find the end of HTTP headers (double CRLF)
-        size_t header_end = response.find("\r\n\r\n");
-        if (header_end == std::string::npos) {
-            // If no proper HTTP headers found, return the whole response
-            return response;
-        }
-        
-        // Extract just the body content (the actual message from backend)
-        std::string body = response.substr(header_end + 4);
-        return body;
-    }
-
-    std::string addLoadBalancerMarker(const std::string& response) {
-        // Find the end of HTTP headers (double CRLF)
-        size_t header_end = response.find("\r\n\r\n");
-        if (header_end == std::string::npos) {
-            // If no proper HTTP headers found, just wrap the message
-            return "[LB] : [" + response + "|BE] " + response;
-        }
-        
-        // Split headers and body
-        std::string headers = response.substr(0, header_end + 4);
-        std::string body = response.substr(header_end + 4);
-        
-        // Wrap the backend message with load balancer marker using actual message
-        std::string marked_body = "[LB] : [" + body + "|BE] ";
-        
-        // Update Content-Length header to match new body length
-        std::string updated_headers = updateContentLength(headers, marked_body.length());
-        
-        return updated_headers + marked_body;
-    }
-
-    std::string updateContentLength(const std::string& headers, size_t new_length) {
-        std::string updated_headers = headers;
-        
-        // Find Content-Length header
-        size_t content_length_pos = updated_headers.find("Content-Length:");
-        if (content_length_pos != std::string::npos) {
-            // Find the end of the Content-Length line
-            size_t line_end = updated_headers.find("\r\n", content_length_pos);
-            if (line_end != std::string::npos) {
-                // Replace the Content-Length value
-                std::string new_content_length = "Content-Length: " + std::to_string(new_length);
-                updated_headers.replace(content_length_pos, line_end - content_length_pos, new_content_length);
-            }
-        }
-        
-        return updated_headers;
-    }
-
-    std::string forwardToBackend(const std::string& request) {
-        int backend_fd = socket(AF_INET, SOCK_STREAM, 0);
-        if (backend_fd == -1) {
+    std::string forward_to_backend(const std::string& request) {
+        // Create socket to backend
+        int backend_socket = socket(AF_INET, SOCK_STREAM, 0);
+        if (backend_socket == -1) {
+            std::cerr << "Failed to create backend socket" << std::endl;
             return "";
         }
 
+        // Resolve backend host
+        struct hostent* host_entry = gethostbyname(backend_host.c_str());
+        if (host_entry == nullptr) {
+            std::cerr << "Failed to resolve backend host: " << backend_host << std::endl;
+            close(backend_socket);
+            return "";
+        }
+
+        // Connect to backend
         struct sockaddr_in backend_addr;
         backend_addr.sin_family = AF_INET;
         backend_addr.sin_port = htons(backend_port);
-        if (inet_pton(AF_INET, backend_host.c_str(), &backend_addr.sin_addr) <= 0) {
-            close(backend_fd);
-            return "";
-        }
+        memcpy(&backend_addr.sin_addr, host_entry->h_addr_list[0], host_entry->h_length);
 
-        if (connect(backend_fd, (struct sockaddr*)&backend_addr, sizeof(backend_addr)) < 0) {
-            close(backend_fd);
+        if (connect(backend_socket, (struct sockaddr*)&backend_addr, sizeof(backend_addr)) < 0) {
+            std::cerr << "Failed to connect to backend server" << std::endl;
+            close(backend_socket);
             return "";
         }
 
         // Send request to backend
-        send(backend_fd, request.c_str(), request.length(), 0);
+        if (send(backend_socket, request.c_str(), request.length(), 0) < 0) {
+            std::cerr << "Failed to send request to backend" << std::endl;
+            close(backend_socket);
+            return "";
+        }
 
         // Read response from backend
-        char buffer[4096] = {0};
         std::string response;
-        ssize_t bytes_read;
+        char buffer[4096];
+        ssize_t bytes_received;
         
-        while ((bytes_read = recv(backend_fd, buffer, sizeof(buffer) - 1, 0)) > 0) {
-            response.append(buffer, bytes_read);
-            memset(buffer, 0, sizeof(buffer));
+        // Read the complete response
+        while ((bytes_received = recv(backend_socket, buffer, sizeof(buffer), 0)) > 0) {
+            response.append(buffer, bytes_received);
         }
 
-        close(backend_fd);
+        close(backend_socket);
         return response;
-    }
-
-    ~LoadBalancer() {
-        if (server_fd != -1) {
-            close(server_fd);
-        }
     }
 };
 
 int main(int argc, char* argv[]) {
-    int port = 80;
+    int listen_port = 80;
     std::string backend_host = "127.0.0.1";
     int backend_port = 8080;
 
-    // Parse command line arguments if provided
+    // Parse command line arguments
     if (argc >= 2) {
-        port = std::stoi(argv[1]);
+        listen_port = std::stoi(argv[1]);
+    }
+    if (argc >= 3) {
+        backend_host = argv[2];
     }
     if (argc >= 4) {
-        backend_host = argv[2];
         backend_port = std::stoi(argv[3]);
     }
 
-    LoadBalancer lb(port, backend_host, backend_port);
+    LoadBalancer lb(listen_port, backend_host, backend_port);
     
     if (!lb.start()) {
         return 1;
